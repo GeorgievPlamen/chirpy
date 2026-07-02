@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sync/atomic"
 )
@@ -17,8 +18,24 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
+const (
+	headerContentType = "Content-Type"
+)
+
 func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(fmt.Sprintf("Hits: %d", cfg.fileserverHits.Load())))
+	w.Header().Set(headerContentType, "text/html; charset=utf-8")
+
+	html := fmt.Sprintf(`
+<html>
+  <body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+  </body>
+</html>`, cfg.fileserverHits.Load())
+
+	if _, err := w.Write([]byte(html)); err != nil {
+		log.Printf("failed to write metrics response: %v", err)
+	}
 }
 
 func (cfg *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
@@ -35,15 +52,15 @@ func main() {
 	apiCfg := &apiConfig{}
 
 	handler.Handle("/app/", http.StripPrefix("/app", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
-	handler.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	handler.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Header().Add("Content-Type", "text/plain")
-		w.Header().Add("Content-Type", "charset=utf-8")
+		w.Header().Add(headerContentType, "text/plain")
+		w.Header().Add(headerContentType, "charset=utf-8")
 
 		w.Write([]byte("OK"))
 	})
-	handler.HandleFunc("GET /metrics", apiCfg.handleMetrics)
-	handler.HandleFunc("POST /reset", apiCfg.handleReset)
+	handler.HandleFunc("GET /admin/metrics", apiCfg.handleMetrics)
+	handler.HandleFunc("POST /admin/reset", apiCfg.handleReset)
 
 	server.ListenAndServe()
 }
