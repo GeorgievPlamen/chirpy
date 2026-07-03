@@ -47,6 +47,7 @@ func main() {
 	handler.HandleFunc("POST /api/chirps", apiCfg.handle(handleCreateChirp))
 	handler.HandleFunc("GET /api/chirps", apiCfg.handle(handleGetChirps))
 	handler.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handle(handleGetChirpById))
+	handler.HandleFunc("POST /api/login", apiCfg.handle(handleLogin))
 
 	server.ListenAndServe()
 }
