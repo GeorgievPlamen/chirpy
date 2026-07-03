@@ -1,0 +1,12 @@
+POST http://localhost:8080/api/users HTTP/1.1
+
+{
+    "email": "jonh.do4@test.com"
+}
+
+###
+POST http://localhost:8080/admin/reset HTTP/1.1
+
+{
+    "email": "jonh.do4@test.com"
+}

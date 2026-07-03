@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"os"
+	"time"
 
 	"github.com/georgievplamen/chirpy/internal/database"
 	"github.com/joho/godotenv"
@@ -19,6 +20,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -50,7 +52,17 @@ func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
+
+	if cfg.platform != "dev" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
 	cfg.fileserverHits = atomic.Int32{}
+	err := cfg.db.ResetUsers(r.Context())
+	if err != nil {
+		fmt.Printf("\n Could not reset users: %v", err)
+	}
 }
 
 func main() {
@@ -66,7 +78,8 @@ func main() {
 	}
 
 	apiCfg := &apiConfig{
-		db: database.New(db),
+		db:       database.New(db),
+		platform: os.Getenv("PLATFORM"),
 	}
 
 	handler := http.NewServeMux()
@@ -158,6 +171,48 @@ func main() {
 		}
 	})
 
+	handler.HandleFunc("POST /api/users", func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		input := createUserInput{}
+		err := decoder.Decode(&input)
+		if err != nil {
+			log.Printf("\n Could not decode request input: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if input.Email == "" {
+			log.Printf("You need to provide an email address")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		user, err := apiCfg.db.CreateUser(r.Context(), input.Email)
+		if err != nil {
+			log.Printf("Could not create user: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		userRes := createUserResponse{
+			Id:        user.ID.String(),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+			Email:     user.Email,
+		}
+
+		userJson, err := json.Marshal(userRes)
+		if err != nil {
+			log.Printf("Could not encode user to JSON: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		w.Write(userJson)
+	})
+
 	server.ListenAndServe()
 }
 
@@ -171,4 +226,15 @@ type validRes struct {
 
 type errorRes struct {
 	Error string `json:"error"`
+}
+
+type createUserInput struct {
+	Email string `json:"email"`
+}
+
+type createUserResponse struct {
+	Id        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
