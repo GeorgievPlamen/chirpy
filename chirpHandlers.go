@@ -28,6 +28,42 @@ type chirpResponse struct {
 	UserId    string    `json:"user_id"`
 }
 
+func handleGetChirpById(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
+	chirpIdRaw := r.PathValue("chirpID")
+	id, err := uuid.Parse(chirpIdRaw)
+	if err != nil {
+		respondWithError(w, err.Error())
+		return
+	}
+
+	chirp, err := apiCfg.db.GetChirpById(r.Context(), id)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			w.WriteHeader(http.StatusNotFound)
+		} else {
+			respondWithError(w, err.Error())
+		}
+		return
+	}
+
+	res := chirpResponse{
+		Id:        chirp.ID.String(),
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserId:    chirp.UserID.String(),
+	}
+
+	resBytes, err := json.Marshal(res)
+	if err != nil {
+		respondWithError(w, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resBytes)
+}
+
 func handleGetChirps(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
 	chirps, err := apiCfg.db.GetChirps(r.Context())
 	if err != nil {
