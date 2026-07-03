@@ -20,12 +20,40 @@ type errorRes struct {
 	Error string `json:"error"`
 }
 
-type createChirpResponse struct {
+type chirpResponse struct {
 	Id        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Body      string    `json:"body"`
 	UserId    string    `json:"user_id"`
+}
+
+func handleGetChirps(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
+	chirps, err := apiCfg.db.GetChirps(r.Context())
+	if err != nil {
+		respondWithError(w, err.Error())
+		return
+	}
+
+	res := make([]chirpResponse, 0)
+	for _, v := range chirps {
+		res = append(res, chirpResponse{
+			Id:        v.ID.String(),
+			CreatedAt: v.CreatedAt,
+			UpdatedAt: v.UpdatedAt,
+			Body:      v.Body,
+			UserId:    v.UserID.String(),
+		})
+	}
+
+	resBytes, err := json.Marshal(res)
+	if err != nil {
+		respondWithError(w, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resBytes)
 }
 
 func handleCreateChirp(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
@@ -91,7 +119,7 @@ func handleCreateChirp(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig
 		return
 	}
 
-	res := createChirpResponse{
+	res := chirpResponse{
 		Id:        createdChirp.ID.String(),
 		CreatedAt: createdChirp.CreatedAt,
 		UpdatedAt: createdChirp.UpdatedAt,
