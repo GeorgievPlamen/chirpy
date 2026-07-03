@@ -1,7 +1,8 @@
 POST http://localhost:8080/api/users HTTP/1.1
 
 {
-    "email": "jonh.do2@test.com"
+    "email": "jonh.do2@test.com",
+    "password": "test"
 }
 
 ###
@@ -9,4 +10,12 @@ POST http://localhost:8080/admin/reset HTTP/1.1
 
 {
     "email": "jonh.do4@test.com"
+}
+
+###
+POST http://localhost:8080/api/login HTTP/1.1
+
+{
+    "email": "jonh.do2@test.com",
+    "password": "test"
 }

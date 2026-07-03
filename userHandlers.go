@@ -15,6 +15,12 @@ type createUserInput struct {
 	Email    string `json:"email"`
 }
 
+type loginInput struct {
+	Password         string `json:"password"`
+	Email            string `json:"email"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
+}
+
 type createUserResponse struct {
 	Id        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -22,9 +28,17 @@ type createUserResponse struct {
 	Email     string    `json:"email"`
 }
 
+type loginUserResponse struct {
+	Id        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+	Token     string    `json:"token"`
+}
+
 func handleLogin(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
 	decoder := json.NewDecoder(r.Body)
-	input := createUserInput{}
+	input := loginInput{}
 	err := decoder.Decode(&input)
 	if err != nil {
 		log.Printf("\n Could not decode request input: %v", err)
@@ -57,11 +71,30 @@ func handleLogin(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
 		return
 	}
 
-	userRes := createUserResponse{
+	expiresIn, err := time.ParseDuration("1h")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("could not parse duration for expires in"))
+		return
+	}
+
+	if input.ExpiresInSeconds > 0 && input.ExpiresInSeconds < 3600 {
+		expiresIn = time.Duration(input.ExpiresInSeconds)
+	}
+
+	token, err := auth.MakeJWT(user.ID, apiCfg.jwtSecret, expiresIn)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("could not create JWT"))
+		return
+	}
+
+	userRes := loginUserResponse{
 		Id:        user.ID.String(),
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     token,
 	}
 
 	userJson, err := json.Marshal(userRes)

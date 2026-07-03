@@ -30,8 +30,9 @@ func main() {
 	}
 
 	apiCfg := &apiConfig{
-		db:       database.New(db),
-		platform: os.Getenv("PLATFORM"),
+		db:        database.New(db),
+		platform:  os.Getenv("PLATFORM"),
+		jwtSecret: os.Getenv("PLATJWT_SECRETFORM"),
 	}
 
 	handler := http.NewServeMux()

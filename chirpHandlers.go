@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/georgievplamen/chirpy/internal/auth"
 	"github.com/georgievplamen/chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
 type createChirpRequest struct {
-	Body   string `json:"body"`
-	UserId string `json:"user_id"`
+	Body string `json:"body"`
 }
 
 type errorRes struct {
@@ -93,9 +93,45 @@ func handleGetChirps(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) 
 }
 
 func handleCreateChirp(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
+	jwt, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		errRes := errorRes{
+			Error: "Invalid JWT",
+		}
+
+		responseBytes, err := json.Marshal(errRes)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if _, err := w.Write(responseBytes); err != nil {
+			log.Printf(failedToWriteResponse, err)
+		}
+	}
+
+	userId, err := auth.ValidateJWT(jwt, apiCfg.jwtSecret)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		errRes := errorRes{
+			Error: "Invalid JWT",
+		}
+
+		responseBytes, err := json.Marshal(errRes)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if _, err := w.Write(responseBytes); err != nil {
+			log.Printf(failedToWriteResponse, err)
+		}
+	}
+
 	chirp := createChirpRequest{}
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&chirp)
+	err = decoder.Decode(&chirp)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 
@@ -116,12 +152,6 @@ func handleCreateChirp(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig
 
 	if len(chirp.Body) > 140 {
 		respondWithError(w, "Chirp is too long")
-		return
-	}
-
-	userId, err := uuid.Parse(chirp.UserId)
-	if err != nil {
-		respondWithError(w, "Invalid user id.")
 		return
 	}
 
