@@ -16,9 +16,8 @@ type createUserInput struct {
 }
 
 type loginInput struct {
-	Password         string `json:"password"`
-	Email            string `json:"email"`
-	ExpiresInSeconds int    `json:"expires_in_seconds"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
 type createUserResponse struct {
@@ -29,11 +28,12 @@ type createUserResponse struct {
 }
 
 type loginUserResponse struct {
-	Id        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	Id           string    `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
@@ -71,30 +71,31 @@ func handleLogin(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
 		return
 	}
 
-	expiresIn, err := time.ParseDuration("1h")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("could not parse duration for expires in"))
-		return
-	}
-
-	if input.ExpiresInSeconds > 0 && input.ExpiresInSeconds < 3600 {
-		expiresIn = time.Duration(input.ExpiresInSeconds)
-	}
-
-	token, err := auth.MakeJWT(user.ID, apiCfg.jwtSecret, expiresIn)
+	token, err := auth.MakeJWT(user.ID, apiCfg.jwtSecret)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("could not create JWT"))
 		return
 	}
 
+	refreshToken, err := apiCfg.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:     auth.MakeRefreshToken(),
+		UserID:    user.ID,
+		ExpiresAt: time.Now().UTC().Add(60 * (time.Hour * 24)),
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("could not save refresh token to db"))
+		return
+	}
+
 	userRes := loginUserResponse{
-		Id:        user.ID.String(),
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     token,
+		Id:           user.ID.String(),
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: refreshToken.Token,
 	}
 
 	userJson, err := json.Marshal(userRes)
@@ -164,4 +165,68 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig)
 
 	w.WriteHeader(http.StatusCreated)
 	w.Write(userJson)
+}
+
+type RefreshResponse struct {
+	Token string `json:"token"`
+}
+
+func handleRefresh(w http.ResponseWriter, r *http.Request, apiConfig *apiConfig) {
+	refreshToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("No bearer token"))
+		return
+	}
+
+	rec, err := apiConfig.db.GetUserFromRefreshToken(r.Context(), refreshToken)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("No bearer token in db"))
+		return
+	}
+
+	if rec.RevokedAt.Valid || rec.ExpiresAt.UTC().Compare(time.Now().UTC()) <= 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Refresh token expired or revoked"))
+		return
+	}
+
+	jwt, err := auth.MakeJWT(rec.UserID, apiConfig.jwtSecret)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Something went wrong"))
+	}
+
+	res := RefreshResponse{
+		Token: jwt,
+	}
+
+	resBytes, err := json.Marshal(res)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Something went wrong"))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resBytes)
+}
+
+func handleRevoke(w http.ResponseWriter, r *http.Request, apiConfig *apiConfig) {
+	refreshToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("No bearer token"))
+		return
+	}
+
+	_, err = apiConfig.db.Revoke(r.Context(), refreshToken)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("No token"))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
