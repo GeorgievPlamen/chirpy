@@ -24,3 +24,11 @@ RETURNING *;
 -- name: GetUserById :one
 SELECT * FROM users
 WHERE id = $1;
+
+-- name: UpdateUserToChirpyRed :one
+UPDATE users
+SET 
+    updated_at = NOW(),
+    is_chirpy_red = true
+WHERE id = $1
+RETURNING *;

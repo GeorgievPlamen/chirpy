@@ -53,6 +53,7 @@ func main() {
 	handler.HandleFunc("POST /api/revoke", apiCfg.handle(handleRevoke))
 	handler.HandleFunc("PUT /api/users", apiCfg.handle(handleUpdateUser))
 	handler.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handle(handleDeleteById))
+	handler.HandleFunc("POST /api/polka/webhooks", apiCfg.handle(handlerPolkaWebhook))
 
 	server.ListenAndServe()
 }

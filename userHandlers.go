@@ -21,10 +21,11 @@ type loginInput struct {
 }
 
 type createUserResponse struct {
-	Id        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	Id          string    `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type loginUserResponse struct {
@@ -34,6 +35,7 @@ type loginUserResponse struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
@@ -96,6 +98,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
 		Email:        user.Email,
 		Token:        token,
 		RefreshToken: refreshToken.Token,
+		IsChirpyRed:  user.IsChirpyRed,
 	}
 
 	userJson, err := json.Marshal(userRes)
@@ -150,10 +153,11 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig)
 	}
 
 	userRes := createUserResponse{
-		Id:        user.ID.String(),
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		Id:          user.ID.String(),
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	}
 
 	userJson, err := json.Marshal(userRes)
