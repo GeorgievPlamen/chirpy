@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -193,6 +194,20 @@ func handleGetChirps(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) 
 			UpdatedAt: v.UpdatedAt,
 			Body:      v.Body,
 			UserId:    v.UserID.String(),
+		})
+	}
+
+	sortParam := queryParams.Get("sort")
+
+	if sortParam == "asc" {
+		sort.Slice(res, func(i, j int) bool {
+			return i < j
+		})
+	}
+
+	if sortParam == "desc" {
+		sort.Slice(res, func(i, j int) bool {
+			return i > j
 		})
 	}
 
