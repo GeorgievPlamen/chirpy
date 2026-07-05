@@ -230,3 +230,66 @@ func handleRevoke(w http.ResponseWriter, r *http.Request, apiConfig *apiConfig) 
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func handleUpdateUser(w http.ResponseWriter, r *http.Request, apiConfig *apiConfig) {
+	jwt, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("no bearer token"))
+	}
+
+	userId, err := auth.ValidateJWT(jwt, apiConfig.jwtSecret)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("invalid jwt"))
+	}
+
+	var input createUserInput
+	decoder := json.NewDecoder(r.Body)
+	err = decoder.Decode(&input)
+	if err != nil || input.Email == "" || input.Password == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Invalid input"))
+	}
+
+	_, err = apiConfig.db.GetUserById(r.Context(), userId)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("could not find user"))
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(input.Password)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("could not hash password"))
+		return
+	}
+
+	userRes, err := apiConfig.db.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID:             userId,
+		Email:          input.Email,
+		HashedPassword: hashedPassword,
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("could not save user to"))
+		return
+	}
+
+	res := createUserResponse{
+		Id:        userRes.ID.String(),
+		CreatedAt: userRes.CreatedAt,
+		UpdatedAt: userRes.UpdatedAt,
+		Email:     userRes.Email,
+	}
+	resBytes, err := json.Marshal(res)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("could not encode res to json"))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resBytes)
+}
