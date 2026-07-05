@@ -141,6 +141,44 @@ func handleGetChirpById(w http.ResponseWriter, r *http.Request, apiCfg *apiConfi
 }
 
 func handleGetChirps(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
+	queryParams := r.URL.Query()
+	authorIdParams := queryParams["author_id"]
+
+	if len(authorIdParams) > 0 && authorIdParams[0] != "" {
+		authorId, err := uuid.Parse(authorIdParams[0])
+		if err != nil {
+			respondWithError(w, err.Error())
+			return
+		}
+
+		chirps, err := apiCfg.db.GetChirpsByAuthorId(r.Context(), authorId)
+		if err != nil {
+			respondWithError(w, err.Error())
+			return
+		}
+
+		res := make([]chirpResponse, 0)
+		for _, v := range chirps {
+			res = append(res, chirpResponse{
+				Id:        v.ID.String(),
+				CreatedAt: v.CreatedAt,
+				UpdatedAt: v.UpdatedAt,
+				Body:      v.Body,
+				UserId:    v.UserID.String(),
+			})
+		}
+
+		resBytes, err := json.Marshal(res)
+		if err != nil {
+			respondWithError(w, err.Error())
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(resBytes)
+		return
+	}
+
 	chirps, err := apiCfg.db.GetChirps(r.Context())
 	if err != nil {
 		respondWithError(w, err.Error())
