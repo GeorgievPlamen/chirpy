@@ -28,6 +28,82 @@ type chirpResponse struct {
 	UserId    string    `json:"user_id"`
 }
 
+func handleDeleteById(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
+	jwt, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		errRes := errorRes{
+			Error: "Invalid JWT",
+		}
+
+		responseBytes, err := json.Marshal(errRes)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if _, err := w.Write(responseBytes); err != nil {
+			log.Printf(failedToWriteResponse, err)
+		}
+	}
+
+	userId, err := auth.ValidateJWT(jwt, apiCfg.jwtSecret)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		errRes := errorRes{
+			Error: "Invalid JWT",
+		}
+
+		responseBytes, err := json.Marshal(errRes)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if _, err := w.Write(responseBytes); err != nil {
+			log.Printf(failedToWriteResponse, err)
+		}
+	}
+
+	chirpIdRaw := r.PathValue("chirpID")
+	if chirpIdRaw == "" {
+		respondWithError(w, "You need to provied a chirp ID")
+		return
+	}
+	chirpId, err := uuid.Parse(chirpIdRaw)
+	if err != nil {
+		respondWithError(w, "You need to provied a valid chirp ID")
+		return
+	}
+
+	chirp, err := apiCfg.db.GetChirpById(r.Context(), chirpId)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			w.WriteHeader(http.StatusNotFound)
+		} else {
+			respondWithError(w, err.Error())
+		}
+		return
+	}
+
+	if chirp.UserID != userId {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	err = apiCfg.db.DeleteChirpById(r.Context(), chirpId)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			w.WriteHeader(http.StatusNotFound)
+		} else {
+			respondWithError(w, err.Error())
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handleGetChirpById(w http.ResponseWriter, r *http.Request, apiCfg *apiConfig) {
 	chirpIdRaw := r.PathValue("chirpID")
 	id, err := uuid.Parse(chirpIdRaw)

@@ -52,6 +52,7 @@ func main() {
 	handler.HandleFunc("POST /api/refresh", apiCfg.handle(handleRefresh))
 	handler.HandleFunc("POST /api/revoke", apiCfg.handle(handleRevoke))
 	handler.HandleFunc("PUT /api/users", apiCfg.handle(handleUpdateUser))
+	handler.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handle(handleDeleteById))
 
 	server.ListenAndServe()
 }
