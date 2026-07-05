@@ -33,6 +33,7 @@ func main() {
 		db:        database.New(db),
 		platform:  os.Getenv("PLATFORM"),
 		jwtSecret: os.Getenv("PLATJWT_SECRETFORM"),
+		polkaKey:  os.Getenv("POLKA_KEY"),
 	}
 
 	handler := http.NewServeMux()
